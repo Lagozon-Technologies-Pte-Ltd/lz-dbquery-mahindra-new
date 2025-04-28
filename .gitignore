@@ -1,0 +1,13 @@
+/db_env
+.env
+/__pycache__
+app.log
+dockerfile
+
+requirements.txt
+
+table_details.py
+
+table_info.txt
+
+
