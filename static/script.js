@@ -469,7 +469,7 @@ function updatePageContent(data) {
     }
     // Add copy button in top-right of popup
     const copyButton = document.createElement('button');
-    copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+    copyButton.innerHTML = '<i class="fa-solid fa-copy"></i>';
     copyButton.className = 'copy-btn-popup';
     copyButton.addEventListener('click', () => {
         const sqlQueryText = document.getElementById("sql-query-content").textContent;
