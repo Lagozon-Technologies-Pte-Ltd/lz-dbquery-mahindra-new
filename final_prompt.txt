@@ -46,6 +46,19 @@
    - `EmployeeType_id` (INTEGER) NULLABLE
    - `EmployeeType` (STRING) NULLABLE
    - `EmployeeType_description` (STRING) NULLABLE
+  Available Employee types:
+  TECHNICIAN
+  DRIVER_PICKUP
+  DRIVER_DROP_BY
+  SVC_ADVISOR
+  WORKSHOP
+  QL_CONTROLLER
+  FINANCE_USER
+  FINANCE_USER
+  WORKSHOP_SUPERVISOR
+  ELECTRICIAN
+  TECH_SPECIALIST
+  SERVICE_PERSON
 
 3. **`vehicle_reporting.sample_data`**
    - `PARNT_GROP` (STRING) NULLABLE
@@ -154,13 +167,22 @@
    - `DVI_POST_LINK` (STRING) NULLABLE
    - `DVI_CLOSE_LINK` (STRING) NULLABLE
 
+-##Employee Role Handling:
+    Whenever the user mentions an employee role or designation (e.g., SERVICE_ADVISOR, TECHNICIAN, WORKSHOP_SUPERVISOR, DRIVER_PICKUP, FINANCE_USER, ELECTRICIAN, etc.), treat it as a specific Employee Type defined in the vehicle_reporting.employee_type table.
 
+Always join vehicle_reporting.employee with vehicle_reporting.employee_type on Employee_Type_ID = EmployeeType_id.
+
+Filter or group by the EmployeeType column using case-insensitive matching (LOWER(EmployeeType) = LOWER('<role>')).
+
+Do not treat employee roles as generic employees or just filter by Employee_Code alone.
+
+This ensures queries are role-specific and accurate.
 - **Whenever a user queries about 'target' it should refer to 'Target Billing Volume' column in billing_data table.**
 - for queries asking about volume dipped or similar , only categorise as 'dipped' or 'increased'.
 - If a user refers to 'Region,' interpret it as 'Zone Name.'
 #### **String Comparisons:**
 Always use `LOWER()` on both sides for string comparisons to enforce case insensitivity. For example:
-- âœ… Correct: `WHERE LOWER(p.`Model Name`) = LOWER('maxx')`
+- Correct: `WHERE LOWER(p.`Model Name`) = LOWER('maxx')`
 - When selecting columns after a JOIN operation, ensure that you are referencing the correct table alias for the desired column. For example, if you need the 'Zone Name', verify which table in the JOIN contains that column and use the appropriate alias (e.g., `sp`.`Zone Name` if `sp` is the alias for `sales_person_hierarchy`).
 
 ---
@@ -203,19 +225,20 @@ ORDER BY Total_Labor_Amount DESC;
 **Query:** "Show approved vs pending customer approvals by advisor"
 
 SELECT
-    e.Employee_Name,
-    SUM(CASE WHEN CUST_APRVL_STATS = 'APPROVED' THEN 1 ELSE 0 END) AS Approved_Count,
-    SUM(CASE WHEN CUST_APRVL_STATS != 'APPROVED' THEN 1 ELSE 0 END) AS Pending_Count,
-    AVG(CUST_APRVD_AMNT) AS Avg_Approved_Amount
+    e.`Employee_Name`,
+    ROUND(SUM(CASE WHEN LOWER(sd.`CUST_APRVL_STATS`) = 'approved' THEN 1 ELSE 0 END), 1) AS Approved_Count,
+    ROUND(SUM(CASE WHEN LOWER(sd.`CUST_APRVL_STATS`) != 'approved' THEN 1 ELSE 0 END), 1) AS Pending_Count,
+    ROUND(AVG(sd.`CUST_APRVD_AMNT`), 1) AS Avg_Approved_Amount
 FROM `prateekproject-450509.vehicle_reporting.sample_data` sd
 JOIN `prateekproject-450509.vehicle_reporting.employee` e
-    ON sd.SA_EMPLY_CD = e.Employee_Code
-WHERE 
-    -- Use the correct column name with backticks due to spaces:
-    `Pre Invoice CRETD_DATE` BETWEEN '2025-03-01' AND '2025-04-11'
-GROUP BY e.Employee_Name;
-
-
+    ON sd.`SA_EMPLY_CD` = e.`Employee_Code`
+JOIN `prateekproject-450509.vehicle_reporting.employee_type` et
+    ON e.`Employee_Type_ID` = et.`EmployeeType_id`
+WHERE
+    LOWER(et.`EmployeeType`) = 'svc_advisor'
+    AND sd.`Pre Invoice CRETD_DATE` BETWEEN '2025-03-01' AND '2025-04-11'
+GROUP BY e.`Employee_Name`
+ORDER BY Approved_Count DESC;
 
 ---
 
@@ -283,6 +306,21 @@ GROUP BY REPEAT_JOB_STATS, Delay_Reason, Estimate_Change_Reason;
 
 
 ---
+#8:
+user query: How many vehicles has a service advisor (employee code) attended?
+
+sql generated:
+SELECT 
+    e.`Employee_Name`, 
+    ROUND(COUNT(sd.`RO_ID`), 1) AS `Total_Vehicles_Attended`
+FROM `prateekproject-450509.vehicle_reporting.sample_data` sd
+JOIN `prateekproject-450509.vehicle_reporting.employee` e
+    ON sd.`SA_EMPLY_CD` = e.`Employee_Code`
+JOIN `prateekproject-450509.vehicle_reporting.employee_type` et
+    ON e.`Employee_Type_ID` = et.`EmployeeType_id`
+WHERE LOWER(et.`EmployeeType`) = 'svc_advisor'
+  AND e.`Employee_Code` = 'SPECIFIED_EMPLOYEE_CODE'  -- Replace with actual employee code
+GROUP BY e.`Employee_Name`
 
 **Final Notes:**
 
