@@ -1,137 +1,149 @@
 examples = [
- {
-    "input": "show total retail volume in financial year 2024",
+{
+    "input": "Show month-on-month growth in total jobs closed for financial year 2024",
     "query": """
-        SELECT 
-            SUM(b.`Retail Volume`) AS `Total Retail Volume`
-        FROM DS_sales_data.billing_data b
-        WHERE b.`Date` BETWEEN DATE('2024-04-01') AND DATE('2025-03-31');   
-        """,
-    "contexts": " | ".join([
-        "Table: DS_sales_data.billing_data",
-        "Columns: Date, Retail Volume",
-        "Description: This table contains vehicle retail volume data categorized by date."
-    ])
-},
- {
-    "input": "get monthly test drives for 2024",
-    "query": """
-        SELECT 
-            FORMAT_DATE('%B %Y', b.`Date`) AS `Month`, 
-            SUM(b.`Test Drive`) AS `Total Test Drives`
-        FROM DS_sales_data.billing_data b
-        WHERE b.`Date` BETWEEN DATE('2024-04-01') AND DATE('2025-03-31')
-        GROUP BY `Month`
-        ORDER BY MIN(b.`Date`);
+        WITH MonthlyJobs AS (
+            SELECT
+                FORMAT_DATE('%b-%y', DATE_TRUNC(sd.`CLOSD_DATE`, MONTH)) AS `Month`,
+                DATE_TRUNC(sd.`CLOSD_DATE`, MONTH) AS _Month_Start,
+                ROUND(COUNT(sd.`RO_ID`), 1) AS `Jobs_Closed`
+            FROM `prateekproject-450509.vehicle_reporting.sample_data` sd
+            WHERE sd.`CLOSD_DATE` BETWEEN DATE('2024-04-01') AND DATE('2025-03-31')
+            GROUP BY `Month`, _Month_Start
+        )
+        SELECT
+            `Month`,
+            `Jobs_Closed`,
+            LAG(`Jobs_Closed`) OVER (ORDER BY _Month_Start) AS `Prev_Jobs_Closed`,
+            CASE
+                WHEN LAG(`Jobs_Closed`) OVER (ORDER BY _Month_Start) IS NULL OR LAG(`Jobs_Closed`) OVER (ORDER BY _Month_Start) = 0
+                    THEN 'None'
+                ELSE CONCAT(
+                    ROUND(
+                        ( (`Jobs_Closed` - LAG(`Jobs_Closed`) OVER (ORDER BY _Month_Start)) /
+                          NULLIF(LAG(`Jobs_Closed`) OVER (ORDER BY _Month_Start), 0)
+                        ) * 100, 1
+                    ), '%'
+                )
+            END AS `Growth_Percentage`
+        FROM MonthlyJobs
+        ORDER BY _Month_Start;
     """,
     "contexts": " | ".join([
-        "Table: DS_sales_data.billing_data",
-        "Columns: Date, Test Drive",
-        "Description: This table records test drive data, including the number of test drives conducted."
+        "Table: vehicle_reporting.sample_data",
+        "Columns: CLOSD_DATE, RO_ID",
+        "Description: Shows month-on-month growth in total jobs closed for each month in FY 2024, including growth percentage."
     ])
 },
- {
-    "input": "show total bookings and billings for model XUV700",
+{
+    "input": "Show year-on-year growth in average initial parts estimate for July",
     "query": """
-        SELECT 
-            p.`Model Name`, 
-            SUM(b.`Open Booking`) AS `Total Bookings`, 
-            SUM(b.`Billing Volume`) AS `Total Billings`
-        FROM DS_sales_data.billing_data b
-        JOIN DS_sales_data.product_hierarchy p ON b.`Model ID` = p.`Model ID`
-        WHERE LOWER(p.`Model Name`) = LOWER('XUV700') 
-        AND b.`Date` BETWEEN DATE('2024-04-01') AND DATE('2025-03-31')
-        GROUP BY p.`Model Name`;
-        """,
+        WITH YearlyParts AS (
+            SELECT
+                EXTRACT(YEAR FROM sd.`RO_DATE`) AS `Year`,
+                ROUND(AVG(sd.`INTL_QUTN_PART_AMNT`), 1) AS `Avg_Initial_Parts_Estimate`
+            FROM `prateekproject-450509.vehicle_reporting.sample_data` sd
+            WHERE EXTRACT(MONTH FROM sd.`RO_DATE`) = 7
+            GROUP BY `Year`
+        )
+        SELECT
+            `Year`,
+            `Avg_Initial_Parts_Estimate`,
+            LAG(`Avg_Initial_Parts_Estimate`) OVER (ORDER BY `Year`) AS `Prev_Year_Avg`,
+            CASE
+                WHEN LAG(`Avg_Initial_Parts_Estimate`) OVER (ORDER BY `Year`) IS NULL OR LAG(`Avg_Initial_Parts_Estimate`) OVER (ORDER BY `Year`) = 0
+                    THEN 'None'
+                ELSE CONCAT(
+                    ROUND(
+                        ( (`Avg_Initial_Parts_Estimate` - LAG(`Avg_Initial_Parts_Estimate`) OVER (ORDER BY `Year`)) /
+                          NULLIF(LAG(`Avg_Initial_Parts_Estimate`) OVER (ORDER BY `Year`), 0)
+                        ) * 100, 1
+                    ), '%'
+                )
+            END AS `Growth_Percentage`
+        FROM YearlyParts
+        ORDER BY `Year`;
+    """,
     "contexts": " | ".join([
-        "Table: DS_sales_data.billing_data, DS_sales_data.product_hierarchy",
-        "Columns: Model ID, Open Booking, Billing Volume, Model Name",
-        "Description: This query retrieves the total bookings and billings for a given vehicle model."
+        "Table: vehicle_reporting.sample_data",
+        "Columns: RO_DATE, INTL_QUTN_PART_AMNT",
+        "Description: Shows year-on-year growth in average initial parts estimate for the month of July."
     ])
 },
-  {
-        "input": "What is the total retail volume for North in Jul 2024",
-        "query": """
-            SELECT 
-                SUM(b.`Retail Volume`) AS `Total Retail Volume`
-            FROM DS_sales_data.billing_data b
-            JOIN DS_sales_data.sales_person_hierarchy s ON b.`RSM ID` = s.`RSM ID`
-            WHERE s.`Zone Name` = 'North'
-            AND b.`Date` BETWEEN DATE('2024-07-01') AND DATE('2024-07-31');
-        """,
-        "contexts": " | ".join([
-            "Table: DS_sales_data.billing_data, DS_sales_data.sales_person_hierarchy",
-            "Columns: RSM ID, Retail Volume, Zone Name, Date",
-            "Description: This query calculates the total retail volume for a specific zone and month."
-        ])
-    },
-    {
-        "input": "Get the monthly billing volume for each model in 2024",
-        "query": """
-            SELECT 
-                p.`Model Name`, 
-                FORMAT_DATE('%B %Y', b.`Date`) AS `Month`, 
-                SUM(b.`Billing Volume`) AS `Total Billing Volume`
-            FROM DS_sales_data.billing_data b
-            JOIN DS_sales_data.product_hierarchy p ON b.`Model ID` = p.`Model ID`
-            WHERE b.`Date` BETWEEN DATE('2024-04-01') AND DATE('2025-03-31')
-            GROUP BY p.`Model Name`, `Month`
-            ORDER BY p.`Model Name`, MIN(b.`Date`);
-        """,
-        "contexts": " | ".join([
-            "Table: DS_sales_data.billing_data, DS_sales_data.product_hierarchy",
-            "Columns: Model ID, Billing Volume, Model Name, Date",
-            "Description: This query provides the monthly billing volume for each vehicle model."
-        ])
-    },
-    {
-        "input": "Show total test drives for each zone in financial year 2024",
-        "query": """
-            SELECT 
-                s.`Zone Name`, 
-                SUM(b.`Test Drive`) AS `Total Test Drives`
-            FROM DS_sales_data.billing_data b
-            JOIN DS_sales_data.sales_person_hierarchy s ON b.`RSM ID` = s.`RSM ID`
-            WHERE b.`Date` BETWEEN DATE('2024-04-01') AND DATE('2025-03-31')
-            GROUP BY s.`Zone Name`
-            ORDER BY `Total Test Drives` DESC;
-        """,
-        "contexts": " | ".join([
-            "Table: DS_sales_data.billing_data, DS_sales_data.sales_person_hierarchy",
-            "Columns: RSM ID, Test Drive, Zone Name, Date",
-            "Description: This query calculates the total test drives for each zone during a financial year."
-        ])
-    },
-    {
-        "input": "Compare monthly retail volume growth for North zone between 2023 and 2024",
-        "query": """
-            WITH MonthlySales AS (
-                SELECT 
-                    s.`Zone Name`, 
-                    FORMAT_DATE('%B %Y', b.`Date`) AS `Month`, 
-                    DATE_TRUNC(b.`Date`, MONTH) AS `Month_Start`,
-                    SUM(b.`Retail Volume`) AS `Retail Volume`
-                FROM DS_sales_data.billing_data b
-                JOIN DS_sales_data.sales_person_hierarchy s ON b.`RSM ID` = s.`RSM ID`
-                WHERE s.`Zone Name` = 'North'
-                AND b.`Date` BETWEEN DATE('2023-04-01') AND DATE('2025-03-31')
-                GROUP BY s.`Zone Name`, `Month`, `Month_Start`
-            )
-            SELECT 
-                `Month`, 
-                `Retail Volume` AS `Current_Retail_Volume`,
-                LAG(`Retail Volume`) OVER (ORDER BY `Month_Start`) AS `Previous_Retail_Volume`,
-                ( (`Retail Volume` - LAG(`Retail Volume`) OVER (ORDER BY `Month_Start`)) 
-                  / LAG(`Retail Volume`) OVER (ORDER BY `Month_Start`) ) * 100 AS `Growth_Percentage`
-            FROM MonthlySales
-            ORDER BY `Month_Start`;
-        """,
-        "contexts": " | ".join([
-            "Table: DS_sales_data.billing_data, DS_sales_data.sales_person_hierarchy",
-            "Columns: RSM ID, Retail Volume, Zone Name, Date",
-            "Description: This query compares the monthly retail volume growth for a specific zone between two financial years."
-        ])
-    }
+{
+    "input": "Show month-on-month growth in average labor discount percentage for each model in FY 2024",
+    "query": """
+        WITH ModelMonth AS (
+            SELECT
+                sd.`MODL_GROP_CD` AS `Model`,
+                FORMAT_DATE('%b-%y', DATE_TRUNC(sd.`RO_DATE`, MONTH)) AS `Month`,
+                DATE_TRUNC(sd.`RO_DATE`, MONTH) AS _Month_Start,
+                ROUND(AVG(sd.`LABR_DISCNT_PERCNTG`), 1) AS `Avg_Labor_Discount_Percentage`
+            FROM `prateekproject-450509.vehicle_reporting.sample_data` sd
+            WHERE sd.`RO_DATE` BETWEEN DATE('2024-04-01') AND DATE('2025-03-31')
+            GROUP BY sd.`MODL_GROP_CD`, `Month`, _Month_Start
+        )
+        SELECT
+            `Model`,
+            `Month`,
+            `Avg_Labor_Discount_Percentage`,
+            LAG(`Avg_Labor_Discount_Percentage`) OVER (PARTITION BY `Model` ORDER BY _Month_Start) AS `Prev_Month_Avg`,
+            CASE
+                WHEN LAG(`Avg_Labor_Discount_Percentage`) OVER (PARTITION BY `Model` ORDER BY _Month_Start) IS NULL OR LAG(`Avg_Labor_Discount_Percentage`) OVER (PARTITION BY `Model` ORDER BY _Month_Start) = 0
+                    THEN 'None'
+                ELSE CONCAT(
+                    ROUND(
+                        ( (`Avg_Labor_Discount_Percentage` - LAG(`Avg_Labor_Discount_Percentage`) OVER (PARTITION BY `Model` ORDER BY _Month_Start)) /
+                          NULLIF(LAG(`Avg_Labor_Discount_Percentage`) OVER (PARTITION BY `Model` ORDER BY _Month_Start), 0)
+                        ) * 100, 1
+                    ), '%'
+                )
+            END AS `Growth_Percentage`
+        FROM ModelMonth
+        ORDER BY `Model`, _Month_Start;
+    """,
+    "contexts": " | ".join([
+        "Table: vehicle_reporting.sample_data",
+        "Columns: RO_DATE, MODL_GROP_CD, LABR_DISCNT_PERCNTG",
+        "Description: Shows month-on-month growth in average labor discount percentage for each vehicle model in FY 2024."
+    ])
+},
+{
+    "input": "Show month-on-month growth in total initial quoted amount for all jobs in FY 2024",
+    "query": """
+        WITH MonthlyQuoted AS (
+            SELECT
+                FORMAT_DATE('%b-%y', DATE_TRUNC(sd.`RO_DATE`, MONTH)) AS `Month`,
+                DATE_TRUNC(sd.`RO_DATE`, MONTH) AS _Month_Start,
+                ROUND(SUM(sd.`INTL_QUTN_TOTL_AMNT`), 1) AS `Total_Quoted_Amount`
+            FROM `prateekproject-450509.vehicle_reporting.sample_data` sd
+            WHERE sd.`RO_DATE` BETWEEN DATE('2024-04-01') AND DATE('2025-03-31')
+            GROUP BY `Month`, _Month_Start
+        )
+        SELECT
+            `Month`,
+            `Total_Quoted_Amount`,
+            LAG(`Total_Quoted_Amount`) OVER (ORDER BY _Month_Start) AS `Prev_Month_Amount`,
+            CASE
+                WHEN LAG(`Total_Quoted_Amount`) OVER (ORDER BY _Month_Start) IS NULL OR LAG(`Total_Quoted_Amount`) OVER (ORDER BY _Month_Start) = 0
+                    THEN 'None'
+                ELSE CONCAT(
+                    ROUND(
+                        ( (`Total_Quoted_Amount` - LAG(`Total_Quoted_Amount`) OVER (ORDER BY _Month_Start)) /
+                          NULLIF(LAG(`Total_Quoted_Amount`) OVER (ORDER BY _Month_Start), 0)
+                        ) * 100, 1
+                    ), '%'
+                )
+            END AS `Growth_Percentage`
+        FROM MonthlyQuoted
+        ORDER BY _Month_Start;
+    """,
+    "contexts": " | ".join([
+        "Table: vehicle_reporting.sample_data",
+        "Columns: RO_DATE, INTL_QUTN_TOTL_AMNT",
+        "Description: Shows month-on-month growth in total initial quoted amount for all jobs in FY 2024."
+    ])
+}
 
 
 

@@ -9,9 +9,7 @@ unified_prompt: |
 
   Ensure the response directly addresses the user's query while maintaining the historical context.
 
-  Include all relevant details (e.g., zone, year, month, product) from previous queries to ensure accurate data retrieval.
-
-
+  Include all relevant details (e.g., employee code, year , month, etc.) from previous queries to ensure accurate data retrieval.
   Input Data:
   Chat History:
   {chat_history}

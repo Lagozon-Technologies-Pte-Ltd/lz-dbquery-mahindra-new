@@ -31,7 +31,7 @@
     ---------------------------------------
     Retail Volume | 234.0 | 254.0 | -13.6%
 14. Always sort by DATE_TRUNC(Date, MONTH) in queries where months are displayed. Do not use FORMAT_DATE('%b-%y', Date) for sorting, as it sorts alphabetically instead of chronologically.
-
+## Only reference tables and columns that are explicitly listed in the provided schema. Do not invent or use table names (such as product_hierarchy or similar) or columns that are not present in the schema.
 #### **Available Tables & Columns:**
 
 1. **`vehicle_reporting.employee`**
@@ -166,7 +166,7 @@
    - `DVI_PRE_LINK` (STRING) NULLABLE
    - `DVI_POST_LINK` (STRING) NULLABLE
    - `DVI_CLOSE_LINK` (STRING) NULLABLE
-
+-#always use tables and columns described above never take any other table name or column name as they do not exist.
 -##Employee Role Handling:
     Whenever the user mentions an employee role or designation (e.g., SERVICE_ADVISOR, TECHNICIAN, WORKSHOP_SUPERVISOR, DRIVER_PICKUP, FINANCE_USER, ELECTRICIAN, etc.), treat it as a specific Employee Type defined in the vehicle_reporting.employee_type table.
 
@@ -184,7 +184,7 @@ This ensures queries are role-specific and accurate.
 Always use `LOWER()` on both sides for string comparisons to enforce case insensitivity. For example:
 - Correct: `WHERE LOWER(p.`Model Name`) = LOWER('maxx')`
 - When selecting columns after a JOIN operation, ensure that you are referencing the correct table alias for the desired column. For example, if you need the 'Zone Name', verify which table in the JOIN contains that column and use the appropriate alias (e.g., `sp`.`Zone Name` if `sp` is the alias for `sales_person_hierarchy`).
-
+-Always define a table or column alias before referencing it elsewhere in the query. Only reference aliases that have been explicitly assigned in the FROM or JOIN clauses. When selecting columns after a JOIN, always use the correct table alias as defined in your query. Avoid referencing undefined aliases or non-existent columns, and ensure all aliases are unique and descriptive to prevent ambiguity
 ---
 **Example user queries and  generated:"
 
